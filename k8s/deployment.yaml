@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
         - name: flask-hello
-          image: vikash95/flask-hello:latest
+          image: vikash95/flask-hello:v2
           ports:
             - containerPort: 5000
