@@ -1,0 +1,72 @@
+1. Create repo, clone it in local
+2. Create a virtual environment named 'argo' - conda create -n argo python=3.10
+3. Activate the virtual environment - conda activate argo
+4. copy the provided requirements.txt file and do "pip install -r app/requirements.txt"
+5. Run locally app/app.py
+6. Add dockerfile, .dockerignore
+7. Build and run locally ->
+    docker build -t flask-hello .
+    docker run -p 5000:5000 flask-hello
+8. Add k8s/ and files
+9. Push flask app to dockerhub
+    docker tag flask-hello <your-dockerhub-username>/flask-hello:latest
+    docker push <your-dockerhub-username>/flask-hello:latest
+10. If image is pushed to dockerhub and k8s config files are pushed to git then move ahead.
+
+11. Open powershell as admin -> "minikube start"
+    >> Check status of the cluster -> "minikube cluster"
+    >> Create namespace -> kubectl create namespace argocd
+    >> Install ArgoCD using the official manifests:
+    >> kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+    >> Expose the ArgoCD server (for local dev) - By default, ArgoCD server is ClusterIP (internal only), so let’s patch it to 
+    NodePort (so you can access it via your browser): kubectl patch svc argocd-server -n argocd -p '{\"spec\": {\"type\": \"NodePort\"}}'
+    >> Now find the port and access it -> minikube service argocd-server -n argocd --url (for minikube) 
+                                          kubectl get svc argocd-server -n argocd (otherwise - eg EKS)
+    >> You'll see a warning on the browser: That's totally expected — you're seeing this warning because ArgoCD uses self-signed 
+    TLS certificates, and browsers don't trust those by default.
+    >> Now use -> 
+    username: admin
+    password: type on terminal "$encoded = kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}"
+[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encoded))"
+
+12. Create an app in argocd with below key-values:
+    * Application Name - flask-hello
+    * Project - default
+    * Sync Policy - Manual (default) or Auto if you want auto-sync
+    * Repository URL - https://github.com/your-username/flask-argocd-demo.git
+    * Revision - HEAD or main (whatever your branch name is)
+    * Path - k8s (this is where your YAMLs are)
+    * Cluster URL - https://kubernetes.default.svc
+    * Namespace - argocd (as we created earlier in our minikube cluster)
+
+13. Click on the App box (should be red or yellow initially).
+    Click the “SYNC” button to apply your Kubernetes manifests.
+
+14. Access your flask app - "minikube service flask-hello-service -n argocd --url" and access the app
+    Optional check service status:
+    * kubectl get svc -A
+    * minikube service list
+
+
+A. Now let’s say you want to change the greeting from “Hello World” to “Hello ArgoCD!”
+   Update the flask app accordingly.
+B. Rebuild and push docker image ->
+    docker build -t flask-hello:v2 .
+    docker tag flask-hello:v2 <your_dockerhub>/flask-hello:v2
+    docker push <your_dockerhub>/flask-hello:v2
+C. Update k8s/deployment.yaml ->
+------------------------------------------------
+    containers:
+    - name: flask-hello
+        image: <your_dockerhub>/flask-hello:v2
+------------------------------------------------
+
+D. Git rituals ->
+    git add .
+    git commit -m "Update message and Docker image to v2"
+    git push origin main
+
+
+Cleanup:
+minikube stop
+minikube delete --all
